@@ -55,8 +55,6 @@ class ActorCritic(nn.Module):
         self.args=args
         grin=GRIN(args)
 
-        self.E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
-        self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
 
         p_graph = grin.build_graph(past).to(self.device)
         p_res = grin.forward(p_graph)    
@@ -153,6 +151,11 @@ class ActorCritic(nn.Module):
 
 class PPO:
     def __init__(self, batch:EpisodeBatch, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
+
+
+
+        self.E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
+        self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
 
         self.n_agents=n_agents
         self.has_continuous_action_space = has_continuous_action_space
