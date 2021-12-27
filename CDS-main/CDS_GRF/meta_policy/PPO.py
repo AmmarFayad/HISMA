@@ -55,8 +55,8 @@ class ActorCritic(nn.Module):
         self.args=args
         grin=GRIN(args)
 
-        E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
-        F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
+        self.E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
+        self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
 
         p_graph = grin.build_graph(past).to(self.device)
         p_res = grin.forward(p_graph)    
@@ -259,7 +259,7 @@ class PPO:
     def update(self,ep_batch,t):
         
 
-        agent_inputs = self._build_inputs(ep_batch, t)  # (bs*n,(obs+act+id))
+        agent_inputs = self._build_inputs(ep_batch, t)  # (bs*n,(obs+act+id)) #########
         avail_actions = ep_batch["avail_actions"][:, t]
 
 
