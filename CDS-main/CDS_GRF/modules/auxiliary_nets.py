@@ -19,12 +19,12 @@ def weights_init_(m):
 
 class Err(nn.Module):
 
-    def __init__(self, num_inputs, z_dim, num_outputs, lr=3e-4):
+    def __init__(self, num_inputs+ z_dim,embed_dim, num_outputs, lr=3e-4):
         super(Err, self).__init__()
 
-        self.linear1 = nn.Linear(num_inputs, z_dim)
-        self.linear2 = nn.Linear(z_dim, z_dim)
-        self.last_fc = nn.Linear(z_dim, num_outputs)
+        self.linear1 = nn.Linear(num_inputs + z_dim, embed_dim)
+        self.linear2 = nn.Linear(embed_dim, embed_dim)
+        self.last_fc = nn.Linear(embed_dim, num_outputs)
 
         self.apply(weights_init_)
         self.lr = lr
@@ -58,12 +58,12 @@ class Err(nn.Module):
 
 class Diff(nn.Module):
 
-    def __init__(self, num_inputs, z_dim, num_outputs, lr=3e-4):
+    def __init__(self, num_inputs+ z_dim,embed_dim, num_outputs, lr=3e-4):
         super(Err, self).__init__()
 
-        self.linear1 = nn.Linear(num_inputs, z_dim)
-        self.linear2 = nn.Linear(z_dim, z_dim)
-        self.last_fc = nn.Linear(z_dim, num_outputs)
+        self.linear1 = nn.Linear(num_inputs + z_dim, embed_dim)
+        self.linear2 = nn.Linear(embed_dim, embed_dim)
+        self.last_fc = nn.Linear(embed_dim, num_outputs)
 
         self.apply(weights_init_)
         self.lr = lr
