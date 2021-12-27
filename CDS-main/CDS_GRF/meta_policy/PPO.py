@@ -53,12 +53,10 @@ class ActorCritic(nn.Module):
         super(ActorCritic, self).__init__()
 
         self.args=args
-        grin=GRIN(args)
+        self.grin=GRIN(args)
 
 
-        p_graph = grin.build_graph(past).to(self.device)
-        p_res = grin.forward(p_graph)    
-        z=p_res["loc_pred"]
+        
 
 
         self.has_continuous_action_space = has_continuous_action_space
@@ -152,7 +150,7 @@ class ActorCritic(nn.Module):
 class PPO:
     def __init__(self, batch:EpisodeBatch, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 
-
+        
 
         self.E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
         self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
@@ -265,7 +263,11 @@ class PPO:
         agent_inputs = self._build_inputs(ep_batch, t)  # (bs*n,(obs+act+id)) #########
         avail_actions = ep_batch["avail_actions"][:, t]
 
+        p_graph = self.policy.grin.build_graph(agent_inputs).to(self.device)
+        p_res = self.policy.grin.forward(p_graph)    
+        z=p_res["loc_pred"]
 
+        
 
         # Monte Carlo estimate of returns
         rewards = []
