@@ -249,7 +249,7 @@ class PPO:
                 inputs.append(torch.zeros_like(batch["actions_onehot"][t0, t]))  # last actions are empty
             else:
                 inputs.append(batch["actions_onehot"][t0, t - 1])
-        inputs.append(batch["obs"][:, t])  # b1av
+        inputs.append(batch["obs"][t0, t])  # b1av
         if self.args.obs_agent_id:  # True for QMix
             inputs.append(torch.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))  # onehot agent ID
 
