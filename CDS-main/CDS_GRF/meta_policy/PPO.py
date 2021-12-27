@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
@@ -69,30 +70,30 @@ class ActorCritic(nn.Module):
         # actor
         if has_continuous_action_space :
             self.actor = nn.Sequential(
-                            nn.Linear(state_dim, 64),
+                            nn.Linear(state_dim, args.ppo_hidden),
                             nn.Tanh(),
-                            nn.Linear(64, 64),
+                            nn.Linear(args.ppo_hidden, args.ppo_hidden),
                             nn.Tanh(),
-                            nn.Linear(64, action_dim),
+                            nn.Linear(args.ppo_hidden, action_dim),
                         )
         else:
             self.actor = nn.Sequential(
-                            nn.Linear(state_dim, 64),
+                            nn.Linear(state_dim, args.ppo_hidden),
                             nn.Tanh(),
-                            nn.Linear(64, 64),
+                            nn.Linear(args.ppo_hidden, args.ppo_hidden),
                             nn.Tanh(),
-                            nn.Linear(64, action_dim),
+                            nn.Linear(args.ppo_hidden, action_dim),
                             nn.Softmax(dim=-1)
                         )
 
         
         # critic
         self.critic = nn.Sequential(
-                        nn.Linear(state_dim, 64),
+                        nn.Linear(state_dim, args.ppo_hidden),
                         nn.Tanh(),
-                        nn.Linear(64, 64),
+                        nn.Linear(args.ppo_hidden, args.ppo_hidden),
                         nn.Tanh(),
-                        nn.Linear(64, 1)
+                        nn.Linear(args.ppo_hidden, 1)
                     )
         
     def set_action_std(self, new_action_std):
@@ -286,6 +287,22 @@ class PPO:
             [h_cat_r, obs, actions_onehot], dim=-1)
         _inputs = intrinsic_input.detach(
         ).reshape(-1, intrinsic_input.shape[-1])
+
+        loss_withid_list, loss_withoutid_list, loss_predict_id_list = [], [], []
+        # update predict network
+        for _ in range(self.args.predict_epoch):
+            for index in BatchSampler(SubsetRandomSampler(range(_obs.shape[0])), 256, False):
+                loss_withoutid = self.eval_predict_withoutid.update(
+                    _inputs[index], _obs_next[index], _mask_reshape[index])
+                loss_withid = self.eval_predict_withid.update(
+                    _inputs[index], _obs_next[index], _add_id[index], _mask_reshape[index])
+
+                if loss_withoutid:
+                    loss_withoutid_list.append(loss_withoutid)
+                if loss_withid:
+                    loss_withid_list.append(loss_withid)
+
+        
 
 
 
