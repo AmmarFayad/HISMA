@@ -153,8 +153,8 @@ class PPO:
 
         
 
-        self.E=Err(self.args.h_dim,self.args.z_dim,self.args.h_dim)
-        self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.h_dim)
+        self.E=Err(self.args.h_dim,self.args.z_dim,self.args.predict_net_dim)
+        self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.predict_net_dim)
 
         self.n_agents=n_agents
         self.has_continuous_action_space = has_continuous_action_space
@@ -238,6 +238,56 @@ class PPO:
             self.buffer.logprobs.append(action_logprob)
 
             return action.item()
+
+    def train_prob_nets(self, batch: EpisodeBatch, mac):
+        actions = batch["actions"][:, :-1]
+        terminated = batch["terminated"][:, :-1].float()
+        mask = batch["filled"][:, :-1].float()
+        mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
+        actions_onehot = batch["actions_onehot"][:, :-1]
+        last_actions_onehot = torch.cat([torch.zeros_like(
+            actions_onehot[:, 0].unsqueeze(1)), actions_onehot], dim=1)  # last_actions
+        
+
+        # Calculate estimated Q-Values
+        mac.init_hidden(batch.batch_size)
+        initial_hidden = mac.hidden_states.clone().detach()
+        initial_hidden = initial_hidden.reshape(
+            -1, initial_hidden.shape[-1]).to(self.args.device)
+        input_here = torch.cat((batch["obs"], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+
+        _, hidden_store, _ = mac.agent.forward(
+            input_here.clone().detach(), initial_hidden.clone().detach())
+        hidden_store = hidden_store.reshape(
+            -1, input_here.shape[1], hidden_store.shape[-2], hidden_store.shape[-1]).permute(0, 2, 1, 3)
+
+        obs = batch["obs"][:, :-1]
+        obs_next = batch["obs"][:, 1:]
+
+        h_cat = hidden_store[:, :-1]
+        add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
+            [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+        mask_reshape = mask.unsqueeze(-1).expand_as(
+            h_cat[..., 0].unsqueeze(-1))
+
+        _obs = obs.reshape(-1, obs.shape[-1]).detach()
+        _obs_next = obs_next.reshape(-1, obs_next.shape[-1]).detach()
+        _h_cat = h_cat.reshape(-1, h_cat.shape[-1]).detach()
+        _add_id = add_id.reshape(-1, add_id.shape[-1]).detach()
+        _mask_reshape = mask_reshape.reshape(-1, 1).detach()
+        _actions_onehot = actions_onehot.reshape(
+            -1, actions_onehot.shape[-1]).detach()
+
+
+        h_cat_r = torch.cat(
+                [torch.zeros_like(h_cat[:, 0]).unsqueeze(1), h_cat[:, :-1]], dim=1)
+        intrinsic_input = torch.cat(
+            [h_cat_r, obs, actions_onehot], dim=-1)
+        _inputs = intrinsic_input.detach(
+        ).reshape(-1, intrinsic_input.shape[-1])
+
+
 
 
 
