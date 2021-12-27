@@ -26,7 +26,8 @@ hypernet_embed: 64
 agent: "rnn_w_strategy"
 z_dim: 10
 
-
+lamda: 0.01
+lamda_e: 0.1
 lr_alpha: 0.001
 lr_eta: 0.001
 

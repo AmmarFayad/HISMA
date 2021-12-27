@@ -264,15 +264,15 @@ class PPO:
         
 
         agent_past_inputs = self._build_inputs(ep_batch, 0, t)  # (bs*n,(obs+act+id)) #########
-        agent_future_inputs = self._build_inputs(ep_batch, t+1, ep_batch.batch_size)
+        agent_future_inputs = self._build_inputs(ep_batch, t+1, t+self.args.segment_ratio*ep_batch.batch_size)
         avail_actions = ep_batch["avail_actions"][:, t]
 
-        p_graph = self.policy.grin.build_graph(agent_inputs).to(self.device)
+        p_graph = self.policy.grin.build_graph(agent_past_inputs).to(self.device)
         p_res = self.policy.grin.forward(p_graph)    
         z=p_res["loc_pred"]
 
-        e = self.E.forward(agent_past_inputs, z)
-        Je = LA.norm(e) + 0.01*LA.norm(agent_future_inputs - agent_past_inputs - self.F.forward(agent_past_inputs, z) - self.E.forward(agent_past_inputs, z))
+        e_alpha = self.E.forward(agent_past_inputs, z)
+        Je = LA.norm(e_alpha) + self.args.lamda*LA.norm(agent_future_inputs - agent_past_inputs - self.F.forward(agent_past_inputs, z) - e_alpha)   #### Error loss
         
 
         # Monte Carlo estimate of returns
@@ -314,7 +314,7 @@ class PPO:
             
 
             # final loss of clipped objective PPO
-            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy -Je
+            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy - self.args.lamda_e * Je
             
             # take gradient step
             self.optimizer.zero_grad()
