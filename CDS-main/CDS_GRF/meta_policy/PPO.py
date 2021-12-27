@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
+from numpy import linalg as LA
 from components.episode_buffer import EpisodeBatch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from GRIN.grin import GRIN
@@ -238,16 +239,16 @@ class PPO:
 
 
 
-    def _build_inputs(self, batch, t):
+    def _build_inputs(self, batch, t0 , t):
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         bs = batch.batch_size
         inputs = []
         if self.args.obs_last_action:  # True for QMix
             if t == 0:
-                inputs.append(torch.zeros_like(batch["actions_onehot"][:, t]))  # last actions are empty
+                inputs.append(torch.zeros_like(batch["actions_onehot"][t0, t]))  # last actions are empty
             else:
-                inputs.append(batch["actions_onehot"][:, t - 1])
+                inputs.append(batch["actions_onehot"][t0, t - 1])
         inputs.append(batch["obs"][:, t])  # b1av
         if self.args.obs_agent_id:  # True for QMix
             inputs.append(torch.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))  # onehot agent ID
@@ -257,16 +258,19 @@ class PPO:
         # inputs[i]: (bs*n,n); ==> (bs*n,3n) i.e. (bs*n,(obs+act+id))
         return inputs
     
-    def update(self,ep_batch,t):
+    def update(self, ep_batch, t):
         
 
-        agent_inputs = self._build_inputs(ep_batch, t)  # (bs*n,(obs+act+id)) #########
+        agent_past_inputs = self._build_inputs(ep_batch, 0, t)  # (bs*n,(obs+act+id)) #########
+        agent_future_inputs = self._build_inputs(ep_batch, t+1, ep_batch.batch_size)
         avail_actions = ep_batch["avail_actions"][:, t]
 
         p_graph = self.policy.grin.build_graph(agent_inputs).to(self.device)
         p_res = self.policy.grin.forward(p_graph)    
         z=p_res["loc_pred"]
 
+        e = self.E.forward(agent_past_inputs, z)
+        Je = LA.norm(e) + 0.01*LA.norm(agent_future_inputs - agent_past_inputs - self.F.forward(agent_past_inputs, z) - self.E.forward(agent_past_inputs, z))
         
 
         # Monte Carlo estimate of returns
@@ -304,9 +308,11 @@ class PPO:
             advantages = rewards - state_values.detach()   
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
+            
+            
 
             # final loss of clipped objective PPO
-            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
+            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy -Je
             
             # take gradient step
             self.optimizer.zero_grad()
