@@ -5,6 +5,7 @@ from torch.distributions import Categorical
 from components.episode_buffer import EpisodeBatch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from GRIN.grin import GRIN
+from modules.auxiliary_nets import Err, Diff
 
 ################################## set device ##########################################
 
@@ -57,7 +58,7 @@ class ActorCritic(nn.Module):
         p_graph = grin.build_graph(past).to(self.device)
         p_res = grin.forward(p_graph)    
         z=p_res["loc_pred"]
-        
+
 
         self.has_continuous_action_space = has_continuous_action_space
 
