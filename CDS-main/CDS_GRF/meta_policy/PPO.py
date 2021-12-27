@@ -6,7 +6,7 @@ from components.episode_buffer import EpisodeBatch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from GRIN.grin import GRIN
 
-################################## set device ##################################
+################################## set device ##########################################
 
 print("============================================================================================")
 
