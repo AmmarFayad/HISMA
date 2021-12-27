@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
-
-
+from components.episode_buffer import EpisodeBatch
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+from GRIN.grin import GRIN
 
 ################################## set device ##################################
 
@@ -28,6 +29,7 @@ print("=========================================================================
 ################################## PPO Policy ##################################
 
 
+
 class RolloutBuffer:
     def __init__(self):
         self.actions = []
@@ -46,8 +48,16 @@ class RolloutBuffer:
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, has_continuous_action_space, action_std_init):
+    def __init__(self, state_dim, action_dim, has_continuous_action_space, action_std_init,args):
         super(ActorCritic, self).__init__()
+
+        self.args=args
+        grin=GRIN(args)
+
+        p_graph = grin.build_graph(past).to(self.device)
+        p_res = grin.forward(p_graph)    
+        z=p_res["loc_pred"]
+        
 
         self.has_continuous_action_space = has_continuous_action_space
 
@@ -138,8 +148,9 @@ class ActorCritic(nn.Module):
 
 
 class PPO:
-    def __init__(self, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
+    def __init__(self, batch:EpisodeBatch, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 
+        self.n_agents=n_agents
         self.has_continuous_action_space = has_continuous_action_space
 
         if has_continuous_action_space:
@@ -150,8 +161,9 @@ class PPO:
         self.K_epochs = K_epochs
         
         self.buffer = RolloutBuffer()
+        self.args= args
 
-        self.policy = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init).to(device)
+        self.policy = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init,args).to(device)
         self.optimizer = torch.optim.Adam([
                         {'params': self.policy.actor.parameters(), 'lr': lr_actor},
                         {'params': self.policy.critic.parameters(), 'lr': lr_critic}
@@ -220,7 +232,33 @@ class PPO:
             return action.item()
 
 
-    def update(self):
+
+    def _build_inputs(self, batch, t):
+        # Assumes homogenous agents with flat observations.
+        # Other MACs might want to e.g. delegate building inputs to each agent
+        bs = batch.batch_size
+        inputs = []
+        if self.args.obs_last_action:  # True for QMix
+            if t == 0:
+                inputs.append(torch.zeros_like(batch["actions_onehot"][:, t]))  # last actions are empty
+            else:
+                inputs.append(batch["actions_onehot"][:, t - 1])
+        inputs.append(batch["obs"][:, t])  # b1av
+        if self.args.obs_agent_id:  # True for QMix
+            inputs.append(torch.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))  # onehot agent ID
+
+        # inputs[i]: (bs,n,n)
+        inputs = torch.cat([x.reshape(bs * self.n_agents, -1) for x in inputs], dim=1)  # (bs*n, act+obs+id)
+        # inputs[i]: (bs*n,n); ==> (bs*n,3n) i.e. (bs*n,(obs+act+id))
+        return inputs
+    
+    def update(self,ep_batch,t):
+        
+
+        agent_inputs = self._build_inputs(ep_batch, t)  # (bs*n,(obs+act+id))
+        avail_actions = ep_batch["avail_actions"][:, t]
+
+
 
         # Monte Carlo estimate of returns
         rewards = []
