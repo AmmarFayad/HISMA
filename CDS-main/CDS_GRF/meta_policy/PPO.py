@@ -171,7 +171,9 @@ class PPO:
         self.policy = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init,args).to(device)
         self.optimizer = torch.optim.Adam([
                         {'params': self.policy.actor.parameters(), 'lr': lr_actor},
-                        {'params': self.policy.critic.parameters(), 'lr': lr_critic}
+                        {'params': self.policy.critic.parameters(), 'lr': lr_critic},
+                        {'params': self.E.parameters(), 'lr': args.lr_alpha},
+                        {'params': self.F.parameters(), 'lr': args.lr_eta}
                     ])
 
         self.policy_old = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init).to(device)

@@ -19,7 +19,7 @@ def weights_init_(m):
 
 class Err(nn.Module):
 
-    def __init__(self, num_inputs+ z_dim,embed_dim, num_outputs, lr=3e-4):
+    def __init__(self, num_inputs, z_dim,embed_dim, num_outputs, lr=3e-4):
         super(Err, self).__init__()
 
         self.linear1 = nn.Linear(num_inputs + z_dim, embed_dim)
@@ -58,7 +58,7 @@ class Err(nn.Module):
 
 class Diff(nn.Module):
 
-    def __init__(self, num_inputs+ z_dim,embed_dim, num_outputs, lr=3e-4):
+    def __init__(self, num_inputs, z_dim,embed_dim, num_outputs, lr=3e-4):
         super(Err, self).__init__()
 
         self.linear1 = nn.Linear(num_inputs + z_dim, embed_dim)

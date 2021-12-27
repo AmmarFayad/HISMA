@@ -27,6 +27,9 @@ agent: "rnn_w_strategy"
 z_dim: 10
 
 
+lr_alpha: 0.001
+lr_eta: 0.001
+
 on_policy_batch: 16
 predict_epoch: 25
 predict_net_dim: 128
