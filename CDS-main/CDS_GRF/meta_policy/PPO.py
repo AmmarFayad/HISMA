@@ -8,6 +8,7 @@ from components.episode_buffer import EpisodeBatch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from GRIN.grin import GRIN
 from modules.auxiliary_nets import Err, Diff
+from modules.LIDS.predict_net import Predict_Network_WithZ, Predict_Network, Predict_Z_obs_tau
 
 ################################## set device ##########################################
 
@@ -57,10 +58,6 @@ class ActorCritic(nn.Module):
         self.args=args
         self.grin=GRIN(args)
 
-
-        
-
-
         self.has_continuous_action_space = has_continuous_action_space
 
         if has_continuous_action_space:
@@ -104,6 +101,22 @@ class ActorCritic(nn.Module):
                         nn.Tanh(),
                         nn.Linear(args.ppo_hidden, 1)
                     )
+
+        
+        ########      p(z|tau-,tau+)       #########
+
+        self.eval_predict_id = Predict_Z_obs_tau(
+            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
+        self.target_predict_id = Predict_Z_obs_tau(
+            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
+
+        
+        #######     
+
+
+
+
+    
         
     def set_action_std(self, new_action_std):
 
@@ -260,6 +273,8 @@ class PPO:
         last_actions_onehot = torch.cat([torch.zeros_like(
             actions_onehot[:, 0].unsqueeze(1)), actions_onehot], dim=1)  # last_actions
         
+
+
 
         # Calculate estimated Q-Values
         mac.init_hidden(batch.batch_size)
