@@ -171,9 +171,9 @@ class ActorCritic(nn.Module):
 
 
 class PPO:
-    def __init__(self, batch:EpisodeBatch, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
+    def __init__(self, batch:EpisodeBatch,mac, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 
-        
+        self.mac=mac
 
         self.E=Err(self.args.h_dim,self.args.z_dim,self.args.predict_net_dim)
         self.F=Diff(self.args.h_dim,self.args.z_dim,self.args.predict_net_dim)
@@ -420,11 +420,104 @@ class PPO:
         
 
         z, prob=self.policy.strategize(agent_past_inputs)
-        
+
 
         e_alpha = self.E.forward(agent_past_inputs, z)
         Je = LA.norm(e_alpha) + self.args.lamda*LA.norm(agent_future_inputs - agent_past_inputs - self.F.forward(agent_past_inputs, z) - e_alpha)   #### Error loss
         
+
+
+
+
+        ################# Rewards  ###############
+        rewards = ep_batch["reward"][:, :-1]
+        actions = ep_batch["actions"][:, :-1]
+        terminated = ep_batch["terminated"][:, :-1].float()
+        mask = ep_batch["filled"][:, :-1].float()
+        mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
+        avail_actions = ep_batch["avail_actions"]
+        actions_onehot = ep_batch["actions_onehot"][:, :-1]
+        last_actions_onehot = torch.cat([torch.zeros_like(
+            actions_onehot[:, 0].unsqueeze(1)), actions_onehot], dim=1)  # last_actions
+
+        # Calculate estimated Q-Values
+        self.mac.init_hidden(ep_batch.batch_size)
+        initial_hidden = self.mac.hidden_states.clone().detach()
+        initial_hidden = initial_hidden.reshape(
+            -1, initial_hidden.shape[-1]).to(self.args.device)
+        input_here = torch.cat((ep_batch["obs"], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+
+        mac_out, hidden_store, local_qs = self.mac.agent.forward(
+            input_here.clone().detach(), initial_hidden.clone().detach())
+        hidden_store = hidden_store.reshape(
+            -1, input_here.shape[1], hidden_store.shape[-2], hidden_store.shape[-1]).permute(0, 2, 1, 3)
+
+        # Pick the Q-Values for the actions taken by each agent
+        chosen_action_qvals = torch.gather(
+            mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
+
+        x_mac_out = mac_out.clone().detach()
+        x_mac_out[avail_actions == 0] = -9999999
+        max_action_qvals, max_action_index = x_mac_out[:, :-1].max(dim=3)
+
+        max_action_index = max_action_index.detach().unsqueeze(3)
+        is_max_action = (max_action_index == actions).int().float()
+
+
+        with torch.no_grad():
+
+            obs = ep_batch["obs"][:, :-1]
+            obs_next = ep_batch["obs"][:, 1:]
+            h_cat = hidden_store[:, :-1]
+            add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
+                [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+
+            if self.args.ifaddobs:
+                h_cat_reshape = torch.cat(
+                    [torch.zeros_like(h_cat[:, 0]).unsqueeze(1), h_cat[:, :-1]], dim=1)
+                intrinsic_input = torch.cat(
+                    [h_cat_reshape, obs, actions_onehot], dim=-1)
+            else:
+                intrinsic_input = torch.cat([h_cat, actions_onehot], dim=-1)
+
+            log_p_o = self.target_predict_withoutid.get_log_pi(
+                intrinsic_input, obs_next)
+
+            add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
+                [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+            log_q_o = self.target_predict_withid.get_log_pi(
+                intrinsic_input, obs_next, add_id)
+            obs_diverge = self.args.beta1 * log_q_o - log_p_o
+
+            # estimate p(a|o)
+            mac_out_c_list = []
+            for item_i in range(self.args.n_agents):
+                mac_out_c, _, _ = self.mac.agent.forward(
+                    input_here[:, self.list[item_i]], initial_hidden)
+                mac_out_c_list.append(mac_out_c)
+
+            mac_out_c_list = torch.stack(mac_out_c_list, dim=-2)
+            mac_out_c_list = mac_out_c_list[:, :-1]
+
+            if self.args.ifaver:
+                mean_p = torch.softmax(mac_out_c_list, dim=-1).mean(dim=-2)
+            else:
+                weight = self.target_predict_id(h_cat)
+                weight_expend = weight.unsqueeze(-1).expand_as(mac_out_c_list)
+                mean_p = (weight_expend *
+                          torch.softmax(mac_out_c_list, dim=-1)).sum(dim=-2)
+
+            q_pi = torch.softmax(self.args.beta1 * mac_out[:, :-1], dim=-1)
+
+            pi_diverge = torch.cat([(q_pi[:, :, id] * torch.log(q_pi[:, :, id] / mean_p[:, :, id])).sum(
+                dim=-1, keepdim=True) for id in range(self.args.n_agents)], dim=-1).unsqueeze(-1)
+
+            intrinsic_rewards = obs_diverge + self.args.beta2 * pi_diverge
+            intrinsic_rewards = intrinsic_rewards.mean(dim=2)
+
+
+
 
         # Monte Carlo estimate of returns
         rewards = []
