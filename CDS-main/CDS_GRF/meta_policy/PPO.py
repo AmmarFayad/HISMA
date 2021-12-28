@@ -113,6 +113,35 @@ class ActorCritic(nn.Module):
         
         #######     
 
+        self.eval_predict_withoutZ = Predict_Network(
+                args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
+        self.target_predict_withoutZ = Predict_Network(
+            args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
+
+        self.eval_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
+                                                            args.obs_shape, args.n_agents)
+        self.target_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
+                                                            args.obs_shape, args.n_agents)
+
+        
+
+        if self.args.use_cuda:
+
+            self.eval_predict_withZ.to(torch.device(self.args.GPU))
+            self.target_predict_withZ.to(torch.device(self.args.GPU))
+
+            self.eval_predict_withoutZ.to(torch.device(self.args.GPU))
+            self.target_predict_withoutZ.to(torch.device(self.args.GPU))
+
+            self.eval_predict_id.to(torch.device(self.args.GPU))
+            self.target_predict_id.to(torch.device(self.args.GPU))
+
+        self.target_predict_withZ.load_state_dict(
+            self.eval_predict_withZ.state_dict())
+        self.target_predict_withoutZ.load_state_dict(
+            self.eval_predict_withoutZ.state_dict())
+        self.target_predict_id.load_state_dict(
+            self.eval_predict_id.state_dict())
 
 
 
@@ -295,6 +324,11 @@ class PPO:
         h_cat = hidden_store[:, :-1]
         add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
             [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+
+        p_graph = self.policy.grin.build_graph(h_cat).to(self.device)
+        p_res = self.policy.grin.forward(p_graph)    
+        z=p_res["loc_pred"]
+
         mask_reshape = mask.unsqueeze(-1).expand_as(
             h_cat[..., 0].unsqueeze(-1))
 
@@ -302,6 +336,7 @@ class PPO:
         _obs_next = obs_next.reshape(-1, obs_next.shape[-1]).detach()
         _h_cat = h_cat.reshape(-1, h_cat.shape[-1]).detach()
         _add_id = add_id.reshape(-1, add_id.shape[-1]).detach()
+        _z = z.reshape(-1, add_id.shape[-1]).detach()
         _mask_reshape = mask_reshape.reshape(-1, 1).detach()
         _actions_onehot = actions_onehot.reshape(
             -1, actions_onehot.shape[-1]).detach()
@@ -318,10 +353,10 @@ class PPO:
         # update predict network
         for _ in range(self.args.predict_epoch):
             for index in BatchSampler(SubsetRandomSampler(range(_obs.shape[0])), 256, False):
-                loss_withoutid = self.eval_predict_withoutid.update(
+                loss_withoutid = self.eval_predict_withoutZ.update(
                     _inputs[index], _obs_next[index], _mask_reshape[index])
-                loss_withid = self.eval_predict_withid.update(
-                    _inputs[index], _obs_next[index], _add_id[index], _mask_reshape[index])
+                loss_withid = self.eval_predict_withZ.update(
+                    _inputs[index], _obs_next[index], _z[index], _mask_reshape[index])
 
                 if loss_withoutid:
                     loss_withoutid_list.append(loss_withoutid)
