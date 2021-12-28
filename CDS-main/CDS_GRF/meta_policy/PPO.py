@@ -103,45 +103,7 @@ class ActorCritic(nn.Module):
                     )
 
         
-        ########      p(z|tau-,tau+)       #########
-
-        self.eval_predict_id = Predict_Z_obs_tau(
-            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
-        self.target_predict_id = Predict_Z_obs_tau(
-            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
-
         
-        #######     
-
-        self.eval_predict_withoutZ = Predict_Network(
-                args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
-        self.target_predict_withoutZ = Predict_Network(
-            args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
-
-        self.eval_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
-                                                            args.obs_shape, args.n_agents)
-        self.target_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
-                                                            args.obs_shape, args.n_agents)
-
-        
-
-        if self.args.use_cuda:
-
-            self.eval_predict_withZ.to(torch.device(self.args.GPU))
-            self.target_predict_withZ.to(torch.device(self.args.GPU))
-
-            self.eval_predict_withoutZ.to(torch.device(self.args.GPU))
-            self.target_predict_withoutZ.to(torch.device(self.args.GPU))
-
-            self.eval_predict_id.to(torch.device(self.args.GPU))
-            self.target_predict_id.to(torch.device(self.args.GPU))
-
-        self.target_predict_withZ.load_state_dict(
-            self.eval_predict_withZ.state_dict())
-        self.target_predict_withoutZ.load_state_dict(
-            self.eval_predict_withoutZ.state_dict())
-        self.target_predict_id.load_state_dict(
-            self.eval_predict_id.state_dict())
 
 
 
@@ -236,6 +198,48 @@ class PPO:
         
         self.MseLoss = nn.MSELoss()
 
+
+
+        ########      p(z|tau-,tau+)       #########
+
+        self.eval_predict_Z = Predict_Z_obs_tau(
+            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
+        self.target_predict_Z = Predict_Z_obs_tau(
+            args.rnn_hidden_dim, args.predict_net_dim, args.n_agents)
+
+        
+        #######     
+
+        self.eval_predict_withoutZ = Predict_Network(
+                args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
+        self.target_predict_withoutZ = Predict_Network(
+            args.rnn_hidden_dim + args.obs_shape + args.n_actions, args.predict_net_dim, args.obs_shape)
+
+        self.eval_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
+                                                            args.obs_shape, args.n_agents)
+        self.target_predict_withZ = Predict_Network_WithZ(args.rnn_hidden_dim + args.obs_shape + args.n_actions + args.n_agents, args.predict_net_dim,
+                                                            args.obs_shape, args.n_agents)
+
+        
+
+        if self.args.use_cuda:
+
+            self.eval_predict_withZ.to(torch.device(self.args.GPU))
+            self.target_predict_withZ.to(torch.device(self.args.GPU))
+
+            self.eval_predict_withoutZ.to(torch.device(self.args.GPU))
+            self.target_predict_withoutZ.to(torch.device(self.args.GPU))
+
+            self.eval_predict_id.to(torch.device(self.args.GPU))
+            self.target_predict_id.to(torch.device(self.args.GPU))
+
+        self.target_predict_withZ.load_state_dict(
+            self.eval_predict_withZ.state_dict())
+        self.target_predict_withoutZ.load_state_dict(
+            self.eval_predict_withoutZ.state_dict())
+        self.target_predict_id.load_state_dict(
+            self.eval_predict_id.state_dict())
+            
 
     def set_action_std(self, new_action_std):
         
@@ -349,21 +353,32 @@ class PPO:
         _inputs = intrinsic_input.detach(
         ).reshape(-1, intrinsic_input.shape[-1])
 
-        loss_withid_list, loss_withoutid_list, loss_predict_id_list = [], [], []
+        loss_withZ_list, loss_withoutZ_list, loss_predict_Z_list = [], [], []
         # update predict network
         for _ in range(self.args.predict_epoch):
             for index in BatchSampler(SubsetRandomSampler(range(_obs.shape[0])), 256, False):
-                loss_withoutid = self.eval_predict_withoutZ.update(
+                loss_withoutZ = self.eval_predict_withoutZ.update(
                     _inputs[index], _obs_next[index], _mask_reshape[index])
-                loss_withid = self.eval_predict_withZ.update(
+                loss_withZ = self.eval_predict_withZ.update(
                     _inputs[index], _obs_next[index], _z[index], _mask_reshape[index])
 
-                if loss_withoutid:
-                    loss_withoutid_list.append(loss_withoutid)
-                if loss_withid:
-                    loss_withid_list.append(loss_withid)
+                if loss_withoutZ:
+                    loss_withoutZ_list.append(loss_withoutZ)
+                if loss_withZ:
+                    loss_withZ_list.append(loss_withZ)
 
-        
+        Z_for_predict = torch.tensor(self.list[0]).type_as(
+            hidden_store).unsqueeze(0).unsqueeze(0)
+
+        Z_for_predict = Z_for_predict.expand_as(hidden_store[..., 0])
+        _ID_for_predict = Z_for_predict.reshape(-1)
+
+        for _ in range(self.args.predict_epoch):
+            for index in BatchSampler(SubsetRandomSampler(range(_obs.shape[0])), 256, False):
+                loss_predict_Z = self.eval_predict_Z.update(
+                    _h_cat[index], _ID_for_predict[index], _mask_reshape[index].squeeze())
+                if loss_predict_Z:
+                    loss_predict_Z_list.append(loss_predict_Z)
 
 
 
