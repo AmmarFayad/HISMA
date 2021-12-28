@@ -9,7 +9,7 @@ from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from GRIN.grin import GRIN
 from modules.auxiliary_nets import Err, Diff
 from modules.LIDS.predict_net import Predict_Network_WithZ, Predict_Network, Predict_Z_obs_tau
-
+from torch.distributions import kl_divergence, Normal
 ################################## set device ##########################################
 
 print("============================================================================================")
@@ -106,8 +106,15 @@ class ActorCritic(nn.Module):
         
 
 
+    def strategize(self, input):
+        
+        p_graph = self.grin.build_graph(input).to(self.device)
+        p_res = self.grin.forward(p_graph)    
+        z=p_res["loc_pred"]
 
-    
+        z_prob=p_res["zA_rv"]+p_res["zG_rv"] 
+
+        return z, z_prob
         
     def set_action_std(self, new_action_std):
 
@@ -410,9 +417,10 @@ class PPO:
         agent_future_inputs = self._build_inputs(ep_batch, t+1, t+self.args.segment_ratio*ep_batch.batch_size)
         avail_actions = ep_batch["avail_actions"][:, t]
 
-        p_graph = self.policy.grin.build_graph(agent_past_inputs).to(self.device)
-        p_res = self.policy.grin.forward(p_graph)    
-        z=p_res["loc_pred"]
+        
+
+        z, prob=self.policy.strategize(agent_past_inputs)
+        
 
         e_alpha = self.E.forward(agent_past_inputs, z)
         Je = LA.norm(e_alpha) + self.args.lamda*LA.norm(agent_future_inputs - agent_past_inputs - self.F.forward(agent_past_inputs, z) - e_alpha)   #### Error loss
