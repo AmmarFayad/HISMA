@@ -481,13 +481,15 @@ class PPO:
             else:
                 intrinsic_input = torch.cat([h_cat, actions_onehot], dim=-1)
 
-            log_p_o = self.target_predict_withoutid.get_log_pi(
+            z, prob=self.policy.strategize(intrinsic_input)
+
+            log_p_o = self.target_predict_withoutZ.get_log_pi(
                 intrinsic_input, obs_next)
 
             add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
                 [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
-            log_q_o = self.target_predict_withid.get_log_pi(
-                intrinsic_input, obs_next, add_id)
+            log_q_o = self.target_predict_withZ.get_log_pi(
+                intrinsic_input, obs_next, z)
             obs_diverge = self.args.beta1 * log_q_o - log_p_o
 
             # estimate p(a|o)
@@ -503,15 +505,15 @@ class PPO:
             if self.args.ifaver:
                 mean_p = torch.softmax(mac_out_c_list, dim=-1).mean(dim=-2)
             else:
-                weight = self.target_predict_id(h_cat)
+                weight = self.target_predict_Z(h_cat)
                 weight_expend = weight.unsqueeze(-1).expand_as(mac_out_c_list)
                 mean_p = (weight_expend *
                           torch.softmax(mac_out_c_list, dim=-1)).sum(dim=-2)
 
             q_pi = torch.softmax(self.args.beta1 * mac_out[:, :-1], dim=-1)
 
-            pi_diverge = torch.cat([(q_pi[:, :, id] * torch.log(q_pi[:, :, id] / mean_p[:, :, id])).sum(
-                dim=-1, keepdim=True) for id in range(self.args.n_agents)], dim=-1).unsqueeze(-1)
+            pi_diverge = torch.cat([(q_pi[:, :, z] * torch.log(q_pi[:, :, z] / mean_p[:, :, z])).sum(
+                dim=-1, keepdim=True)], dim=-1).unsqueeze(-1)
 
             intrinsic_rewards = obs_diverge + self.args.beta2 * pi_diverge
             intrinsic_rewards = intrinsic_rewards.mean(dim=2)
