@@ -96,6 +96,15 @@ class ActorCritic(nn.Module):
                         nn.Linear(args.ppo_hidden, 1)
                     )
         
+
+        self.critic2 = nn.Sequential(
+                        nn.Linear(state_dim, args.ppo_hidden),
+                        nn.Tanh(),
+                        nn.Linear(args.ppo_hidden, args.ppo_hidden),
+                        nn.Tanh(),
+                        nn.Linear(args.ppo_hidden, 1)
+                    )
+        
     def set_action_std(self, new_action_std):
 
         if self.has_continuous_action_space:
@@ -145,6 +154,7 @@ class ActorCritic(nn.Module):
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
         state_values = self.critic(state)
+        state_values2 = self.critic2(state)
         
         return action_logprobs, state_values, dist_entropy
 
@@ -174,6 +184,7 @@ class PPO:
         self.optimizer = torch.optim.Adam([
                         {'params': self.policy.actor.parameters(), 'lr': lr_actor},
                         {'params': self.policy.critic.parameters(), 'lr': lr_critic},
+                        {'params': self.policy.critic2.parameters(), 'lr': lr_critic},
                         {'params': self.E.parameters(), 'lr': args.lr_alpha},
                         {'params': self.F.parameters(), 'lr': args.lr_eta}
                     ])
