@@ -9,6 +9,7 @@ from utils.logging import Logger
 from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
 
+from meta_policy.train import train
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
 from controllers import REGISTRY as mac_REGISTRY
@@ -202,6 +203,9 @@ def run_sequential(args, logger):
                         idx, update_prior.to('cpu').tolist())
                 else:
                     learner.train(episode_sample, runner.t_env, episode)
+                
+                if args.learner=='LIDS_QMIX' and runner.t_env % args.t_max *args.segment_ratio ==0:
+                    train (args, episode_sample)
 
             # on policy update prediction networks
             if "CDS" in args.learner:
