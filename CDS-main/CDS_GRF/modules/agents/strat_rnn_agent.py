@@ -18,6 +18,8 @@ class RNNAgent_with_strategy(nn.Module):
         self.hyper = True
         self.hyper_z_fc1 = nn.Linear(args.z_dim + args.n_agents, args.rnn_hidden_dim * args.n_actions)
 
+        self.fc2_common = nn.Linear(args.rnn_hidden_dim +args.z_dim, args.n_actions)
+
     def init_hidden(self):
         # make hidden states on same device as model
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
@@ -42,5 +44,12 @@ class RNNAgent_with_strategy(nn.Module):
             wz = self.z_fc3(z)
 
             wq = q * wz
+
+        q_c_input=th.cat([h,z], dim=-1)
+        q_common= self.fc2_common(q_c_input)
+
+
+        wq+=q_common
+
 
         return wq, h
