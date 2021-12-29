@@ -2,12 +2,10 @@ import os
 import glob
 import time
 from datetime import datetime
-
+import random
 import torch
 import numpy as np
 
-import gym
-import roboschool
 
 # import pybullet_envs
 
@@ -17,7 +15,7 @@ from PPO import PPO
 
 ################################### Training ###################################
 
-def train():
+def train(args,ep_batch):
 
     print("============================================================================================")
 
@@ -57,7 +55,7 @@ def train():
     lr_actor = 0.0003       # learning rate for actor network
     lr_critic = 0.001       # learning rate for critic network
 
-    random_seed = 0         # set random seed if required (0 = no random seed)
+    random_seed = random.int()        # set random seed if required (0 = no random seed)
 
     #####################################################
 
@@ -65,16 +63,7 @@ def train():
 
     print("training environment name : " + env_name)
 
-    env = gym.make(env_name)
-
-    # state space dimension
-    state_dim = env.observation_space.shape[0]
-
-    # action space dimension
-    if has_continuous_action_space:
-        action_dim = env.action_space.shape[0]
-    else:
-        action_dim = env.action_space.n
+    
 
 
 
@@ -138,9 +127,6 @@ def train():
 
     print("--------------------------------------------------------------------------------------------")
 
-    print("state space dimension : ", state_dim)
-    print("action space dimension : ", action_dim)
-
     print("--------------------------------------------------------------------------------------------")
 
     if has_continuous_action_space:
@@ -166,13 +152,7 @@ def train():
     print("optimizer learning rate actor : ", lr_actor)
     print("optimizer learning rate critic : ", lr_critic)
 
-    if random_seed:
-        print("--------------------------------------------------------------------------------------------")
-        print("setting random seed to ", random_seed)
-        torch.manual_seed(random_seed)
-        env.seed(random_seed)
-        np.random.seed(random_seed)
-
+    
     #####################################################
 
     print("============================================================================================")
@@ -180,7 +160,7 @@ def train():
     ################# training procedure ################
 
     # initialize a PPO agent
-    ppo_agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std)
+    ppo_agent = PPO(args.obs_shape, args.n_actions, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std)
 
 
     # track total training time
@@ -214,20 +194,20 @@ def train():
 
         for t in range(1, max_ep_len+1):
 
-            # select action with policy
-            action = ppo_agent.select_action(state)
-            state, reward, done, _ = env.step(action)
+            # # select action with policy
+            # action = ppo_agent.select_action(state)
+            # state, reward, done, _ = env.step(action)
 
             # saving reward and is_terminals
-            ppo_agent.buffer.rewards.append(reward)
-            ppo_agent.buffer.is_terminals.append(done)
+            #ppo_agent.buffer.rewards.append(reward)
+            #ppo_agent.buffer.is_terminals.append(done)
 
             time_step +=1
-            current_ep_reward += reward
+            #current_ep_reward += reward
 
             # update PPO agent
             if time_step % update_timestep == 0:
-                ppo_agent.update()
+                ppo_agent.update(ep_batch)
 
             # if continuous action space; then decay action std of ouput action distribution
             if has_continuous_action_space and time_step % action_std_decay_freq == 0:
@@ -268,10 +248,9 @@ def train():
                 print("--------------------------------------------------------------------------------------------")
 
             # break; if the episode is over
-            if done:
-                break
+            
 
-        print_running_reward += current_ep_reward
+        # print_running_reward += current_ep_reward
         print_running_episodes += 1
 
         log_running_reward += current_ep_reward

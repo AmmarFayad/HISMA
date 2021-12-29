@@ -166,8 +166,8 @@ class ActorCritic(nn.Module):
         dist_entropy = dist.entropy()
         state_values = self.critic(state)
         state_values2 = self.critic2(state)
-        
-        return action_logprobs, state_values, dist_entropy
+        vals=state_values+state_values2
+        return action_logprobs, vals, dist_entropy
 
 
 class PPO:
@@ -465,7 +465,31 @@ class PPO:
         is_max_action = (max_action_index == actions).int().float()
 
 
+
+        # Calculate the Values necessary for the second Reward
+        input_here_past = torch.cat((ep_batch["obs"][:t], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+        input_here_future = torch.cat((ep_batch["obs"][t+1:t+self.args.segment_ratio*ep_batch.batch_size], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+        self.target_mac.init_hidden(ep_batch.batch_size)
+        initial_hidden_target = self.target_mac.hidden_states.clone().detach()
+        initial_hidden_target = initial_hidden_target.reshape(
+            -1, initial_hidden_target.shape[-1]).to(self.args.device)
+        target_mac_out, _, _ = self.target_mac.agent.forward(
+            input_here_past.clone().detach(), initial_hidden_target.clone().detach())
+        target_mac_out = target_mac_out[:, 1:]
+
+        target_max_qvals_past = target_mac_out.max(dim=3)[0]
+
+        target_mac_out, _, _ = self.target_mac.agent.forward(
+            input_here_future.clone().detach(), initial_hidden_target.clone().detach())
+        target_mac_out = target_mac_out[:, 1:]
+
+        target_max_qvals_future = target_mac_out.max(dim=3)[0]
+
         with torch.no_grad():
+            R_m = target_max_qvals_past - target_max_qvals_future
+
 
             obs = ep_batch["obs"][:, :-1]
             obs_next = ep_batch["obs"][:, 1:]
@@ -519,9 +543,10 @@ class PPO:
             intrinsic_rewards = intrinsic_rewards.mean(dim=2)
 
 
-
+            self.buffer.rewards.append(R_m  )        ############
 
         # Monte Carlo estimate of returns#
+        
         rewards = []
         discounted_reward = 0
         for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
