@@ -189,7 +189,7 @@ def train(args,ep_batch):
     # training loop
     while time_step <= max_training_timesteps:
 
-        state = env.reset()
+        #state = env.reset()
         current_ep_reward = 0
 
         for t in range(1, max_ep_len+1):
@@ -260,7 +260,7 @@ def train(args,ep_batch):
 
 
     log_f.close()
-    env.close()
+    #env.close()
 
 
 

@@ -537,13 +537,13 @@ class PPO:
             q_pi = torch.softmax(self.args.beta1 * mac_out[:, :-1], dim=-1)
 
             pi_diverge = torch.cat([(q_pi[:, :, z] * torch.log(q_pi[:, :, z] / mean_p[:, :, z])).sum(
-                dim=-1, keepdim=True)], dim=-1).unsqueeze(-1)
+                dim=-1, keepdim=True)], dim=-1).unsqueeze(-1)       ######### log [sigma / p(.| tau)]
 
-            intrinsic_rewards = obs_diverge + self.args.beta2 * pi_diverge
-            intrinsic_rewards = intrinsic_rewards.mean(dim=2)
+            information_rewards = obs_diverge + self.args.beta2 * pi_diverge
+            information_rewards = information_rewards.mean(dim=2)
 
 
-            self.buffer.rewards.append(R_m  )        ############
+            self.buffer.rewards.append(R_m + information_rewards)        ############
 
         # Monte Carlo estimate of returns#
         
