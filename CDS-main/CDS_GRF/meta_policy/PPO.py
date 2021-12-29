@@ -521,7 +521,7 @@ class PPO:
 
 
 
-        # Monte Carlo estimate of returns
+        # Monte Carlo estimate of returns#
         rewards = []
         discounted_reward = 0
         for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
