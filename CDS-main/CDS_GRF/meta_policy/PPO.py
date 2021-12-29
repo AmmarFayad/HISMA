@@ -449,7 +449,7 @@ class PPO:
                             dim=-1).permute(0, 2, 1, 3).to(self.args.device)
 
         mac_out, hidden_store, local_qs = self.mac.agent.forward(
-            input_here.clone().detach(), initial_hidden.clone().detach())
+            input_here.clone().detach(), initial_hidden.clone().detach(),z)
         hidden_store = hidden_store.reshape(
             -1, input_here.shape[1], hidden_store.shape[-2], hidden_store.shape[-1]).permute(0, 2, 1, 3)
 
@@ -475,8 +475,9 @@ class PPO:
         initial_hidden_target = self.target_mac.hidden_states.clone().detach()
         initial_hidden_target = initial_hidden_target.reshape(
             -1, initial_hidden_target.shape[-1]).to(self.args.device)
+        z,_=self.meta_pol.strategize(initial_hidden_target)
         target_mac_out, _, _ = self.target_mac.agent.forward(
-            input_here_past.clone().detach(), initial_hidden_target.clone().detach())
+            input_here_past.clone().detach(), initial_hidden_target.clone().detach(),z)
         target_mac_out = target_mac_out[:, 1:]
 
         target_max_qvals_past = target_mac_out.max(dim=3)[0]
@@ -520,7 +521,7 @@ class PPO:
             mac_out_c_list = []
             for item_i in range(self.args.n_agents):
                 mac_out_c, _, _ = self.mac.agent.forward(
-                    input_here[:, self.list[item_i]], initial_hidden)
+                    input_here[:, self.list[item_i]], initial_hidden,z)
                 mac_out_c_list.append(mac_out_c)
 
             mac_out_c_list = torch.stack(mac_out_c_list, dim=-2)
