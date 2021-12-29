@@ -378,12 +378,12 @@ class PPO:
             hidden_store).unsqueeze(0).unsqueeze(0)
 
         Z_for_predict = Z_for_predict.expand_as(hidden_store[..., 0])
-        _ID_for_predict = Z_for_predict.reshape(-1)
+        _Z_for_predict = Z_for_predict.reshape(-1)
 
         for _ in range(self.args.predict_epoch):
             for index in BatchSampler(SubsetRandomSampler(range(_obs.shape[0])), 256, False):
                 loss_predict_Z = self.eval_predict_Z.update(
-                    _h_cat[index], _ID_for_predict[index], _mask_reshape[index].squeeze())
+                    _h_cat[index], _Z_for_predict[index], _mask_reshape[index].squeeze())
                 if loss_predict_Z:
                     loss_predict_Z_list.append(loss_predict_Z)
 
@@ -517,7 +517,7 @@ class PPO:
                 intrinsic_input, obs_next, z)
             obs_diverge = self.args.beta1 * log_q_o - log_p_o
 
-            # estimate p(a|o)
+            
             mac_out_c_list = []
             for item_i in range(self.args.n_agents):
                 mac_out_c, _, _ = self.mac.agent.forward(
@@ -540,7 +540,16 @@ class PPO:
             pi_diverge = torch.cat([(q_pi[:, :, z] * torch.log(q_pi[:, :, z] / mean_p[:, :, z])).sum(
                 dim=-1, keepdim=True)], dim=-1).unsqueeze(-1)       ######### log [sigma / p(.| tau)]
 
+
+
+
             information_rewards = obs_diverge + self.args.beta2 * pi_diverge
+
+            alltau=torch.cat([input_here_past,input_here_future], dim=-1)
+            z_prob= self.eval_predict_Z(alltau)
+
+            information_rewards+=z_prob
+
             information_rewards = information_rewards.mean(dim=2)
 
 
