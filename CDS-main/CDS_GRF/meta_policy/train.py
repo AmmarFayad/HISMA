@@ -275,12 +275,6 @@ def train(args,ep_batch):
 
 
 
-
-if __name__ == '__main__':
-
-    train()
-    
-    
     
     
     

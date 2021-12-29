@@ -560,9 +560,19 @@ class PPO:
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
         # convert list to tensor
-        agent_inputs = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(device)
-        old_strats = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(device)
-        old_logprobs = torch.squeeze(torch.stack(self.buffer.logprobs, dim=0)).detach().to(device)
+        agent_past_inputs = self._build_inputs(ep_batch, 0, t)  # (bs*n,(obs+act+id)) #########
+        agent_future_inputs = self._build_inputs(ep_batch, t+1, t+self.args.segment_ratio*ep_batch.batch_size)
+        avail_actions = ep_batch["avail_actions"][:, t]
+
+        
+
+        old_strats, old_probs=self.policy.strategize(agent_past_inputs)
+
+        old_logprobs=torch.log(old_probs)
+
+        agent_inputs = torch.squeeze(torch.stack(agent_past_inputs, dim=0)).detach().to(device)
+        old_strats = torch.squeeze(torch.stack(old_strats, dim=0)).detach().to(device)
+        old_logprobs = torch.squeeze(torch.stack(old_logprobs, dim=0)).detach().to(device)
 
         
         # Optimize policy for K epochs
