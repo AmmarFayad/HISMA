@@ -440,7 +440,7 @@ class PPO:
         last_actions_onehot = torch.cat([torch.zeros_like(
             actions_onehot[:, 0].unsqueeze(1)), actions_onehot], dim=1)  # last_actions
 
-        # Calculate estimated Q-Values
+        # Calculate estimated Q-Values  ####### For the Boltzman Operator
         self.mac.init_hidden(ep_batch.batch_size)
         initial_hidden = self.mac.hidden_states.clone().detach()
         initial_hidden = initial_hidden.reshape(
@@ -546,7 +546,7 @@ class PPO:
             information_rewards = obs_diverge + self.args.beta2 * pi_diverge
 
             alltau=torch.cat([input_here_past,input_here_future], dim=-1)
-            z_prob= self.eval_predict_Z(alltau)
+            z_prob= self.eval_predict_Z.forward(alltau)
 
             information_rewards+=z_prob
 
