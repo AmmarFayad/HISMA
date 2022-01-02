@@ -52,12 +52,13 @@ class RolloutBuffer:
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, has_continuous_action_space, action_std_init,args):
+    def __init__(self,mac, state_dim, action_dim, has_continuous_action_space, action_std_init,args):
         super(ActorCritic, self).__init__()
 
         self.args=args
         self.grin=GRIN(args)
 
+        self.mac=mac
         self.has_continuous_action_space = has_continuous_action_space
 
         if has_continuous_action_space:
@@ -95,7 +96,7 @@ class ActorCritic(nn.Module):
         
 
         self.critic2 = nn.Sequential(
-                        nn.Linear(state_dim, args.ppo_hidden),
+                        nn.Linear(args.z_embedding_dim, args.ppo_hidden),
                         nn.Tanh(),
                         nn.Linear(args.ppo_hidden, args.ppo_hidden),
                         nn.Tanh(),
@@ -146,28 +147,15 @@ class ActorCritic(nn.Module):
         return action.detach(), action_logprob.detach()
     
 
-    def evaluate(self, state, action):
+    def evaluate(self, input):
 
-        if self.has_continuous_action_space:
-            action_mean = self.actor(state)
-            
-            action_var = self.action_var.expand_as(action_mean)
-            cov_mat = torch.diag_embed(action_var).to(device)
-            dist = MultivariateNormal(action_mean, cov_mat)
-            
-            # For Single Action Environments.
-            if self.action_dim == 1:
-                action = action.reshape(-1, self.action_dim)
-
-        else:
-            action_probs = self.actor(state)
-            dist = Categorical(action_probs)
-        action_logprobs = dist.log_prob(action)
-        dist_entropy = dist.entropy()
-        state_values = self.critic(state)
-        state_values2 = self.critic2(state)
+        
+        state_values = self.critic(input)
+        embed_input=self.mac.fc2(input)
+        
+        state_values2 = self.critic2(embed_input)
         vals=state_values+state_values2
-        return action_logprobs, vals, dist_entropy
+        return  vals
 
 
 class PPO:
@@ -191,7 +179,7 @@ class PPO:
         self.buffer = RolloutBuffer()
         self.args= args
 
-        self.policy = ActorCritic(self.args.h_dim,self.args.z_dim, has_continuous_action_space, action_std_init,args).to(device)
+        self.policy = ActorCritic(self.mac,self.args.h_dim,self.args.z_dim, has_continuous_action_space, action_std_init,args).to(device)
         self.optimizer = torch.optim.Adam([
                         {'params': self.policy.actor.parameters(), 'lr': lr_actor},
                         {'params': self.policy.critic.parameters(), 'lr': lr_critic},
@@ -200,7 +188,7 @@ class PPO:
                         {'params': self.F.parameters(), 'lr': args.lr_eta}
                     ])
 
-        self.policy_old = ActorCritic(self.args.h_dim,self.args.z_dim, has_continuous_action_space, action_std_init).to(device)
+        self.policy_old = ActorCritic(self.mac,self.args.h_dim,self.args.z_dim, has_continuous_action_space, action_std_init).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         
         self.MseLoss = nn.MSELoss()
@@ -589,7 +577,9 @@ class PPO:
         for _ in range(self.K_epochs):
 
             # Evaluating old actions and values
-            logprobs, state_values, dist_entropy = self.policy.strategize(agent_inputs, old_strats)
+            logprobs,  dist_entropy = self.policy.strategize(agent_inputs, old_strats)
+
+            state_values=self.policy.evaluate(agent_inputs)
 
             # match state_values tensor dimensions with rewards tensor
             state_values = torch.squeeze(state_values)
