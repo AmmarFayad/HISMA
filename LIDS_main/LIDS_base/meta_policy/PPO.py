@@ -471,7 +471,7 @@ class PPO:
         target_max_qvals_past = target_mac_out.max(dim=3)[0]
 
         target_mac_out, _, _ = self.target_mac.agent.forward(
-            input_here_future.clone().detach(), initial_hidden_target.clone().detach())
+            self.F.forward(agent_past_inputs, z), initial_hidden_target.clone().detach())
         target_mac_out = target_mac_out[:, 1:]
 
         target_max_qvals_future = target_mac_out.max(dim=3)[0]
