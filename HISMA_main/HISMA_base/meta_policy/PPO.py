@@ -417,7 +417,7 @@ class PPO:
 
 
 
-        ################# Rewards  ###############
+        ################# Rewards  ################
         rewards = ep_batch["reward"][:, :-1]
         actions = ep_batch["actions"][:, :-1]
         terminated = ep_batch["terminated"][:, :-1].float()
