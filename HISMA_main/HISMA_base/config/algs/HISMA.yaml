@@ -39,6 +39,8 @@ predict_net_dim: 128
 beta1: 0.5
 beta2: 1.0
 beta: 0.05
+beta_residual: 0.05
+alpha_info: 0.05
 ifaver: True
 ifon_sample: False
 ifaddobs: True

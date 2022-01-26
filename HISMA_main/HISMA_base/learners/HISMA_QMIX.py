@@ -2,7 +2,7 @@ import copy
 import torch as th
 import numpy as np
 import torch.nn.functional as F
-
+from numpy import linalg as LA
 from torch.optim import RMSprop
 from modules.mixers.qmix import QMixer
 from components.episode_buffer import EpisodeBatch
@@ -50,6 +50,12 @@ class HISMA_QMIX:
         actions_onehot = batch["actions_onehot"][:, :-1]
         last_actions_onehot = th.cat([th.zeros_like(
             actions_onehot[:, 0].unsqueeze(1)), actions_onehot], dim=1)  # last_actions
+
+
+        
+
+
+
 
         # Calculate estimated Q-Values
         self.mac.init_hidden(batch.batch_size)
@@ -102,7 +108,73 @@ class HISMA_QMIX:
         else:
             target_max_qvals = target_mac_out.max(dim=3)[0]
 
-        
+        # Surprise IM
+        with th.no_grad():
+
+
+            obs = batch["obs"][:, :-1]
+            obs_next = batch["obs"][:, 1:]
+            h_cat = hidden_store[:, :-1]
+            add_id = th.eye(self.args.n_agents).to(obs.device).expand(
+                [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+
+            if self.args.ifaddobs:
+                h_cat_reshape = th.cat(
+                    [th.zeros_like(h_cat[:, 0]).unsqueeze(1), h_cat[:, :-1]], dim=1)
+                intrinsic_input = th.cat(
+                    [h_cat_reshape, obs, actions_onehot], dim=-1)
+            else:
+                intrinsic_input = th.cat([h_cat, actions_onehot], dim=-1)
+
+            z, prob=self.policy.strategize(intrinsic_input)
+
+            log_p_o = self.target_predict_withoutZ.get_log_pi(
+                intrinsic_input, obs_next)
+
+            add_id = th.eye(self.args.n_agents).to(obs.device).expand(
+                [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
+            log_q_o = self.target_predict_withZ.get_log_pi(
+                intrinsic_input, obs_next, z)
+            obs_diverge = self.args.beta1 * log_q_o - log_p_o
+
+            
+            mac_out_c_list = []
+            for item_i in range(self.args.n_agents):
+                mac_out_c, _, _ = self.mac.agent.forward(
+                    input_here[:, self.list[item_i]], initial_hidden,z)
+                mac_out_c_list.append(mac_out_c)
+
+            mac_out_c_list = th.stack(mac_out_c_list, dim=-2)
+            mac_out_c_list = mac_out_c_list[:, :-1]
+
+            if self.args.ifaver:
+                mean_p = th.softmax(mac_out_c_list, dim=-1).mean(dim=-2)
+            else:
+                weight = self.target_predict_Z(h_cat)
+                weight_expend = weight.unsqueeze(-1).expand_as(mac_out_c_list)
+                mean_p = (weight_expend *
+                          th.softmax(mac_out_c_list, dim=-1)).sum(dim=-2)
+
+            q_pi = th.softmax(self.args.beta1 * mac_out[:, :-1], dim=-1)
+
+            pi_diverge = th.cat([(q_pi[:, :, z] * th.log(q_pi[:, :, z] / mean_p[:, :, z])).sum(
+                dim=-1, keepdim=True)], dim=-1).unsqueeze(-1)       ######### log [sigma / p(.| tau)]
+
+
+            input_here_past = th.cat((batch["obs"], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+            input_here_future = th.cat((batch["obs"][:-1], last_actions_onehot),
+                            dim=-1).permute(0, 2, 1, 3).to(self.args.device)
+
+            information_rewards = obs_diverge + self.args.beta2 * pi_diverge
+
+            alltau=th.cat([input_here_past,input_here_future], dim=-1)
+            z_prob= self.eval_predict_Z.forward(alltau)
+
+            information_rewards+=z_prob
+
+            information_rewards = information_rewards.mean(dim=2)
+            Residual_error=LA.norm(input_here_future- self.F.forward(input_here_past, z)) 
 
         # Mix
         if self.mixer is not None:
@@ -112,7 +184,7 @@ class HISMA_QMIX:
                 target_max_qvals, batch["state"][:, 1:])
 
         # Calculate 1-step Q-Learning targets
-        targets = rewards  + \
+        targets = rewards -self.args.alpha_info*information_rewards +self.args.beta_residual*Residual_error + \
             self.args.gamma * (1 - terminated) * target_max_qvals
 
         if show_demo:
