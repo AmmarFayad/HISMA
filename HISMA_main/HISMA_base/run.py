@@ -204,7 +204,7 @@ def run_sequential(args, logger):
                 else:
                     learner.train(episode_sample, runner.t_env, episode)
                 
-                if args.learner=='LIDS_QMIX' and runner.t_env % args.t_max *args.segment_ratio ==0:
+                if args.learner=='HISMA_QMIX' and runner.t_env % args.t_max *args.segment_ratio ==0:
                     train (args, episode_sample)
 
             # on policy update prediction networks

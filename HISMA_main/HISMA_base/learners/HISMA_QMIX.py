@@ -8,7 +8,7 @@ from modules.mixers.qmix import QMixer
 from components.episode_buffer import EpisodeBatch
 from meta_policy.PPO import PPO
 
-class LIDS_QMIX:
+class HISMA_QMIX:
     def __init__(self, mac, scheme, logger, args, meta_pol):
         self.args = args
         self.mac = mac

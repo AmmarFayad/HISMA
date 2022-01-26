@@ -15,7 +15,7 @@ target_update_interval: 200
 
 # use the Q_Learner to train
 agent_output_type: "q"
-learner: "LIDS_QMIX"
+learner: "HISMA_QMIX"
 double_q: True
 mixer: "qmix"
 mixing_embed_dim: 32
@@ -45,4 +45,4 @@ ifaddobs: True
 alpha: 0.3
 segment_ratio:  0.1
 
-name: "lids_qmix_prior"
+name: "hisma_qmix_prior"
