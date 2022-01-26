@@ -176,7 +176,7 @@ class HISMA_QMIX:
             information_rewards = information_rewards.mean(dim=2)
             Residual_error=LA.norm(input_here_future- self.F.forward(input_here_past, z)) 
 
-        # Mix
+        ## Mix
         if self.mixer is not None:
             chosen_action_qvals = self.mixer(
                 chosen_action_qvals, batch["state"][:, :-1])
