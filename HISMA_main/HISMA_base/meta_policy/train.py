@@ -9,7 +9,7 @@ import numpy as np
 
 # import pybullet_envs
 
-from PPO import PPO
+from PO import PO
 
 
 
@@ -160,7 +160,7 @@ def train(args,ep_batch):
     ################# training procedure ################
 
     # initialize a PPO agent
-    ppo_agent = PPO(args.obs_shape, args.n_actions, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std)
+    ppo_agent = PO(args.obs_shape, args.n_actions, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std)
 
 
     # track total training time

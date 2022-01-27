@@ -6,7 +6,7 @@ from numpy import linalg as LA
 from torch.optim import RMSprop
 from modules.mixers.qmix import QMixer
 from components.episode_buffer import EpisodeBatch
-from meta_policy.PPO import PPO
+from meta_policy.PO import PO
 
 class HISMA_QMIX:
     def __init__(self, mac, scheme, logger, args, meta_pol):

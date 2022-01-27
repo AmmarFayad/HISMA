@@ -157,8 +157,8 @@ class ActorCritic(nn.Module):
         vals=state_values+state_values2
         return  vals
 
-
-class PPO:
+ ### latent policy optimization
+class PO:    
     def __init__(self, batch:EpisodeBatch,mac, args, n_agents, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 
         self.mac=mac
