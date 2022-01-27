@@ -6,7 +6,7 @@ from torch.distributions import Categorical
 from numpy import linalg as LA
 from components.episode_buffer import EpisodeBatch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
-from GRIN.grin import GRIN
+from latent_module.latent_pol import latent_pol
 from modules.auxiliary_nets import Err, Diff
 from modules.LIDS.predict_net import Predict_Network_WithZ, Predict_Network, Predict_Z_obs_tau
 from torch.distributions import kl_divergence, Normal
@@ -51,7 +51,7 @@ class ActorCritic(nn.Module):
         super(ActorCritic, self).__init__()
 
         self.args=args
-        self.grin=GRIN(args)
+        self.latent_pol=latent_pol(args)
 
         self.mac=mac
         self.has_continuous_action_space = has_continuous_action_space
@@ -104,8 +104,8 @@ class ActorCritic(nn.Module):
 
     def strategize(self, input):
         
-        p_graph = self.grin.build_graph(input).to(self.device)
-        p_res = self.grin.forward(p_graph)    
+        p_graph = self.latent_pol.build_graph(input).to(self.device)
+        p_res = self.latent_pol.forward(p_graph)    
         z=p_res["loc_pred"]
 
         z_prob=p_res["zA_rv"]+p_res["zG_rv"] 
@@ -309,8 +309,8 @@ class PO:
         add_id = torch.eye(self.args.n_agents).to(obs.device).expand(
             [obs.shape[0], obs.shape[1], self.args.n_agents, self.args.n_agents])
 
-        p_graph = self.policy.grin.build_graph(h_cat).to(self.device)
-        p_res = self.policy.grin.forward(p_graph)    
+        p_graph = self.policy.latent_pol.build_graph(h_cat).to(self.device)
+        p_res = self.policy.latent_pol.forward(p_graph)    
         z=p_res["loc_pred"]
 
         mask_reshape = mask.unsqueeze(-1).expand_as(

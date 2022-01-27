@@ -9,9 +9,9 @@ import dgl
 from metrics import calc_metrics, calc_metrics_debug
 
 
-class GRIN(nn.Module):
+class latent_pol(nn.Module):
     def __init__(self, args):
-        super(GRIN, self).__init__()
+        super(latent_pol, self).__init__()
         self.num_vars = args.num_vars
         self.input_size = args.input_size
         self.prediction_steps = args.prediction_steps
