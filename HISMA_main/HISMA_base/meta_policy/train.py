@@ -17,7 +17,6 @@ from PO import PO
 
 def train(args,ep_batch):
 
-    print("============================================================================================")
 
 
     ####### initialize environment hyperparameters ######
@@ -61,7 +60,6 @@ def train(args,ep_batch):
 
 
 
-    print("training environment name : " + env_name)
 
     
 
@@ -89,8 +87,6 @@ def train(args,ep_batch):
     #### create new log file for each run
     log_f_name = log_dir + '/PPO_' + env_name + "_log_" + str(run_num) + ".csv"
 
-    print("current logging run number for " + env_name + " : ", run_num)
-    print("logging at : " + log_f_name)
 
     #####################################################
 
@@ -109,53 +105,11 @@ def train(args,ep_batch):
 
 
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
-    print("save checkpoint path : " + checkpoint_path)
 
     #####################################################
 
-
-    ############# print all hyperparameters #############
-
-    print("--------------------------------------------------------------------------------------------")
-
-    print("max training timesteps : ", max_training_timesteps)
-    print("max timesteps per episode : ", max_ep_len)
-
-    print("model saving frequency : " + str(save_model_freq) + " timesteps")
-    print("log frequency : " + str(log_freq) + " timesteps")
-    print("printing average reward over episodes in last : " + str(print_freq) + " timesteps")
-
-    print("--------------------------------------------------------------------------------------------")
-
-    print("--------------------------------------------------------------------------------------------")
-
-    if has_continuous_action_space:
-        print("Initializing a continuous action space policy")
-        print("--------------------------------------------------------------------------------------------")
-        print("starting std of action distribution : ", action_std)
-        print("decay rate of std of action distribution : ", action_std_decay_rate)
-        print("minimum std of action distribution : ", min_action_std)
-        print("decay frequency of std of action distribution : " + str(action_std_decay_freq) + " timesteps")
-
-    else:
-        print("Initializing a discrete action space policy")
-
-    print("--------------------------------------------------------------------------------------------")
-
-    print("PPO update frequency : " + str(update_timestep) + " timesteps")
-    print("PPO K epochs : ", K_epochs)
-    print("PPO epsilon clip : ", eps_clip)
-    print("discount factor (gamma) : ", gamma)
-
-    print("--------------------------------------------------------------------------------------------")
-
-    print("optimizer learning rate actor : ", lr_actor)
-    print("optimizer learning rate critic : ", lr_critic)
 
     
-    #####################################################
-
-    print("============================================================================================")
 
     ################# training procedure ################
 
@@ -165,9 +119,6 @@ def train(args,ep_batch):
 
     # track total training time
     start_time = datetime.now().replace(microsecond=0)
-    print("Started training at (GMT) : ", start_time)
-
-    print("============================================================================================")
 
 
     # logging file
@@ -233,19 +184,13 @@ def train(args,ep_batch):
                 print_avg_reward = print_running_reward / print_running_episodes
                 print_avg_reward = round(print_avg_reward, 2)
 
-                print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(i_episode, time_step, print_avg_reward))
 
                 print_running_reward = 0
                 print_running_episodes = 0
 
             # save model weights
             if time_step % save_model_freq == 0:
-                print("--------------------------------------------------------------------------------------------")
-                print("saving model at : " + checkpoint_path)
                 ppo_agent.save(checkpoint_path)
-                print("model saved")
-                print("Elapsed Time  : ", datetime.now().replace(microsecond=0) - start_time)
-                print("--------------------------------------------------------------------------------------------")
 
             # break; if the episode is over
             
@@ -263,15 +208,6 @@ def train(args,ep_batch):
     #env.close()
 
 
-
-
-    # print total training time
-    print("============================================================================================")
-    end_time = datetime.now().replace(microsecond=0)
-    print("Started training at (GMT) : ", start_time)
-    print("Finished training at (GMT) : ", end_time)
-    print("Total training time  : ", end_time - start_time)
-    print("============================================================================================")
 
 
 
