@@ -12,7 +12,6 @@ from modules.LIDS.predict_net import Predict_Network_WithZ, Predict_Network, Pre
 from torch.distributions import kl_divergence, Normal
 ################################## set device ##########################################
 
-print("============================================================================================")
 
 
 # set device to cpu or cuda
@@ -21,11 +20,7 @@ device = torch.device('cpu')
 if(torch.cuda.is_available()): 
     device = torch.device('cuda:0') 
     torch.cuda.empty_cache()
-    print("Device set to : " + str(torch.cuda.get_device_name(device)))
-else:
-    print("Device set to : cpu")
-    
-print("============================================================================================")
+
 
 
 
@@ -122,9 +117,7 @@ class ActorCritic(nn.Module):
         if self.has_continuous_action_space:
             self.action_var = torch.full((self.action_dim,), new_action_std * new_action_std).to(device)
         else:
-            print("--------------------------------------------------------------------------------------------")
-            print("WARNING : Calling ActorCritic::set_action_std() on discrete action space policy")
-            print("--------------------------------------------------------------------------------------------")
+            pass
 
 
     def forward(self):
@@ -244,28 +237,20 @@ class PO:
             self.policy_old.set_action_std(new_action_std)
         
         else:
-            print("--------------------------------------------------------------------------------------------")
-            print("WARNING : Calling PPO::set_action_std() on discrete action space policy")
-            print("--------------------------------------------------------------------------------------------")
+            pass
 
 
     def decay_action_std(self, action_std_decay_rate, min_action_std):
-        print("--------------------------------------------------------------------------------------------")
 
         if self.has_continuous_action_space:
             self.action_std = self.action_std - action_std_decay_rate
             self.action_std = round(self.action_std, 4)
             if (self.action_std <= min_action_std):
                 self.action_std = min_action_std
-                print("setting actor output action_std to min_action_std : ", self.action_std)
-            else:
-                print("setting actor output action_std to : ", self.action_std)
+            
             self.set_action_std(self.action_std)
 
-        else:
-            print("WARNING : Calling PPO::decay_action_std() on discrete action space policy")
-
-        print("--------------------------------------------------------------------------------------------")
+        
 
 
     def select_action(self, state):
